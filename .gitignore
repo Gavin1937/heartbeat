@@ -1,0 +1,7 @@
+/.vscode/
+
+heartbeat
+heartbeat.exe
+heartbeat.out
+
+*.o
