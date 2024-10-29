@@ -114,7 +114,7 @@ std::string create_response(const std::string& data_in)
     std::ostringstream oss;
     oss
         << "HTTP/1.1 200 OK\r\n"
-        << "Content-Type: text/plain; charset=UTF-8\r\n"
+        << "Content-Type: application/json; charset=UTF-8\r\n"
         << "Content-Length: " << data_in.size() << "\r\n"
         << "Connection: close\r\n"
         << "\r\n"
