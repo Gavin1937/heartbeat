@@ -18,6 +18,11 @@ g++ -o heartbeat.exe heartbeat.cpp -lws2_32
 cl.exe /Fe:heartbeat.exe heartbeat.cpp ws2_32.lib /EHsc
 ```
 
+### Makefile (Support all platforms)
+```sh
+make
+```
+
 You can add an additional compiler flag to change response protocol
 * `-DRESP_TCP`: default response protocol, raw TCP data
 * `-DRESP_HTTP`: response data using HTTP
@@ -26,6 +31,10 @@ You can add an additional compiler flag to change response protocol
 
 > [!NOTE]
 > In MSVC's case, you can use `/DRESP_TCP` syntax to add additional compiler flags.
+
+> [!NOTE]
+> In Makefile's case, you can use parameters after `make` command to add compiler flags.
+> e.g.: `make RESP=TCP`, `make RESP=HTTP`, `make CLOSING_DELAY=0`
 
 
 # sample response
