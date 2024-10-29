@@ -5,3 +5,6 @@ heartbeat.exe
 heartbeat.out
 
 *.o
+*.obj
+*.exe
+*.out

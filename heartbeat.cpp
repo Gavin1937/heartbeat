@@ -55,8 +55,8 @@ static time_point begin_time;
     
 #elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || defined(__CYGWIN__)
     
+    #include <winsock2.h>
     #include <windows.h>
-    #include <winsock.h>
     
     #define S_PLATFORM_INIT \
     WSADATA wsa_data; \
@@ -130,7 +130,6 @@ std::string collect_system_metrics()
 {
     time_point current_time = std::chrono::system_clock::now();
     std::chrono::duration<double> duration = current_time - begin_time;
-    duration.count();
     
     std::ostringstream oss;
     oss << "{\"uptime\":" << duration.count() << "}";
