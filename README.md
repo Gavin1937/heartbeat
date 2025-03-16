@@ -23,22 +23,12 @@ cl.exe /Fe:heartbeat.exe heartbeat.cpp ws2_32.lib /EHsc
 make
 ```
 
-You can add an additional compiler flag to change response protocol
-* `-DRESP_TCP`: default response protocol, raw TCP data
-* `-DRESP_HTTP`: response data using HTTP
-* `-DNO_CLOSING_DELAY`: server will add a small delay before closing, so client would have time to retrieve all data. This flag will disable such behavior.
-    * recommend to leave it enabled to avoid wired error of client.
-
 ### CMake (Support all platforms)
 
 #### Generate build system
 ```sh
 cmake -S . -B build
 ```
-
-You can add additional compiler flag (just like makefile) via:
-* `-DRESP=TCP` or `-DRESP=HTTP` flag. If not supply, cmake will use `-DRESP=TCP` by default.
-* `-DCLOSING_DELAY`
 
 #### Build the project
 ```sh
@@ -52,6 +42,15 @@ cmake --build
 > In Makefile's case, you can use parameters after `make` command to add compiler flags.
 > e.g.: `make RESP=TCP`, `make RESP=HTTP`, `make CLOSING_DELAY=0`
 
+> [!NOTE]
+> In CMake's case, you can use parameters after `cmake -S . -B build` command to add compiler flags.
+> e.g.: `-DRESP=TCP`, `-DRESP=HTTP`, `-DCLOSING_DELAY=ON`
+
+You can add an additional compiler flag to change response protocol
+* `-DRESP_TCP`: default response protocol, raw TCP data
+* `-DRESP_HTTP`: response data using HTTP
+* `-DNO_CLOSING_DELAY`: server will add a small delay before closing, so client would have time to retrieve all data. This flag will disable such behavior.
+    * recommend to leave it enabled to avoid wired error of client.
 
 # sample response
 
