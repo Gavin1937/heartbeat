@@ -5,6 +5,9 @@ heartbeat
 heartbeat.exe
 heartbeat.out
 
+*.sh
+*.bat
+*.ps1
 *.service
 *.o
 *.obj
