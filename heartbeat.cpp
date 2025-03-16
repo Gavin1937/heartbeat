@@ -6,11 +6,17 @@
 using time_point = std::chrono::system_clock::time_point;
 static time_point begin_time;
 
+static bool is_exit = false;
+static int ret_code = 0;
+static int socket_fd;
+static int client_fd;
+
 
 // platform specific configs
 #if defined(_LINUX) || defined(__linux__)
     
     #include <unistd.h>
+    #include <signal.h>
     #include <netinet/in.h>
     #include <sys/socket.h>
     #include <arpa/inet.h>
@@ -23,6 +29,7 @@ static time_point begin_time;
     #define S_close close
     #define S_shutdown shutdown
     #define S_SHUT_RDWR SHUT_RDWR
+    #define S_setsockopt setsockopt
     #define S_bind bind
     #define S_getsockname getsockname
     #define S_accept accept
@@ -53,6 +60,37 @@ static time_point begin_time;
     }
     #define sleep milisleep
     
+    void exit_handler(int signal)
+    {
+        is_exit = true;
+        switch (signal)
+        {
+        case SIGINT:
+        case SIGTERM:
+        case SIGKILL:
+            S_close(client_fd);
+            client_fd = -1;
+            S_close(socket_fd);
+            socket_fd = -1;
+            return;
+        default:
+            return;
+        }
+    }
+    
+    bool create_exit_handler()
+    {
+        struct sigaction sa;
+        sa.sa_handler = exit_handler;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = 0;
+        
+        sigaction(SIGINT, &sa, NULL);
+        sigaction(SIGTERM, &sa, NULL);
+        sigaction(SIGKILL, &sa, NULL);
+        return true;
+    }
+    
 #elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || defined(__CYGWIN__)
     
     #include <winsock2.h>
@@ -72,12 +110,39 @@ static time_point begin_time;
     #define S_close closesocket
     #define S_shutdown shutdown
     #define S_SHUT_RDWR SD_BOTH
+    #define S_setsockopt setsockopt
     #define S_bind bind
     #define S_getsockname getsockname
     #define S_accept accept
     #define S_send send
     
     #define sleep Sleep
+    
+    BOOL WINAPI exit_handler(DWORD signal)
+    {
+        is_exit = true;
+        switch (signal)
+        {
+        case CTRL_C_EVENT:
+        case CTRL_CLOSE_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_LOGOFF_EVENT:
+        case CTRL_SHUTDOWN_EVENT:
+            S_close(client_fd);
+            client_fd = -1;
+            S_close(socket_fd);
+            socket_fd = -1;
+            return TRUE;
+        
+        default:
+            return FALSE;
+        }
+    }
+    
+    bool create_exit_handler()
+    {
+        return static_cast<bool>(SetConsoleCtrlHandler(exit_handler, TRUE));
+    }
     
 #endif
 
@@ -161,11 +226,27 @@ int run_server(
     
     S_PLATFORM_INIT
     
+    if (!create_exit_handler())
+    {
+        std::cerr << "Failed to create server exit handler." << std::endl;
+        S_close(socket_fd);
+        return SOCKET_INIT_FAILED;
+    }
+    
     // create TCP socket
-    int socket_fd = S_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    socket_fd = S_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socket_fd == INVALID_SOCKET)
     {
         std::cerr << "Failed to create socket." << std::endl;
+        S_close(socket_fd);
+        return SOCKET_INIT_FAILED;
+    }
+    
+    // set socket option to reuse address
+    // this is for force linux kernel to reuse a socket_fd while its closed and in TIME_WAIT state
+    int opt = 1;
+    if (S_setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&opt), sizeof(opt)) < 0) {
+        std::cerr << "Failed to set socket options." << std::endl;
         S_close(socket_fd);
         return SOCKET_INIT_FAILED;
     }
@@ -177,7 +258,7 @@ int run_server(
     socket_addr.sin_port = htons(port);
     
     // bind socket address to fd
-    if (S_bind(socket_fd, (struct sockaddr*)&socket_addr, sizeof(socket_addr)) == INVALID_SOCKET)
+    if (S_bind(socket_fd, reinterpret_cast<struct sockaddr*>(&socket_addr), sizeof(socket_addr)) == INVALID_SOCKET)
     {
         std::cerr << "Failed to bind address." << std::endl;
         S_close(socket_fd);
@@ -195,7 +276,7 @@ int run_server(
     // get real address:port of server
     struct sockaddr_in server_addr;
     S_socklen len = sizeof(server_addr);
-    if (S_getsockname(socket_fd, (struct sockaddr*)&server_addr, &len) == INVALID_SOCKET)
+    if (S_getsockname(socket_fd, reinterpret_cast<struct sockaddr*>(&server_addr), &len) == INVALID_SOCKET)
     {
         std::cerr << "Failed to get sockname." << std::endl;
         S_close(socket_fd);
@@ -207,12 +288,20 @@ int run_server(
     
     
     // main loop
-    while (true)
+    while (!is_exit)
     {
         // accept new connection
         struct sockaddr_in client_sk;
         S_socklen client_sk_len = sizeof(client_sk);
-        int client_fd = S_accept(socket_fd, (struct sockaddr*)&client_sk, &client_sk_len);
+        client_fd = S_accept(socket_fd, reinterpret_cast<struct sockaddr*>(&client_sk), &client_sk_len);
+        
+        // server will wait on S_accept(), so when we leave above line,
+        // we first check whether server get terminated
+        if (is_exit)
+        {
+            return ret_code;
+        }
+        
         if (client_fd == INVALID_SOCKET)
         {
             std::cerr << "Failed to accept connection." << std::endl;
@@ -316,11 +405,15 @@ int main(int argc, char** argv)
     catch(const std::invalid_argument& invarg)
     {
         std::cerr << "Invalid argument" << std::endl;
+        if (client_fd >= 0) S_close(client_fd);
+        if (socket_fd >= 0) S_close(socket_fd);
         return INVALID_ARGUMENT;
     }
     catch(const std::exception& e)
     {
         std::cerr << "Exception: " << e.what() << '\n';
+        if (client_fd >= 0) S_close(client_fd);
+        if (socket_fd >= 0) S_close(socket_fd);
     }
     
 }
