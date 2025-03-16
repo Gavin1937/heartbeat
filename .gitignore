@@ -5,6 +5,7 @@ heartbeat
 heartbeat.exe
 heartbeat.out
 
+*.service
 *.o
 *.obj
 *.exe
