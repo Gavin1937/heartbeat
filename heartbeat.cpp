@@ -129,10 +129,25 @@ std::string create_response(const std::string& data_in)
 std::string collect_system_metrics()
 {
     time_point current_time = std::chrono::system_clock::now();
-    std::chrono::duration<double> duration = current_time - begin_time;
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - begin_time);
+    
+    auto duration_hr = std::chrono::duration_cast<std::chrono::hours>(duration);
+    duration -= std::chrono::duration_cast<std::chrono::milliseconds>(duration_hr);
+    
+    auto duration_min = std::chrono::duration_cast<std::chrono::minutes>(duration);
+    duration -= std::chrono::duration_cast<std::chrono::milliseconds>(duration_min);
+    
+    auto duration_sec = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    duration -= std::chrono::duration_cast<std::chrono::milliseconds>(duration_sec);
+    
     
     std::ostringstream oss;
-    oss << "{\"uptime\":" << duration.count() << "}";
+    oss << "{\"uptime\":\""
+        << duration_hr.count() << ":"
+        << duration_min.count() << ":"
+        << duration_sec.count() << ":"
+        << duration.count()
+    << "\"}";
     
     return oss.str();
 }
